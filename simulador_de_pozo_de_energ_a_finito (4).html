@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador: Pozo Cuadrado Finito</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- MathJax para las ecuaciones -->
+    <script>
+        MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']]
+            },
+            svg: {
+                fontCache: 'global'
+            }
+        };
+    </script>
+    <script type="text/javascript" id="MathJax-script" async
+      src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js">
+    </script>
+
+    <style>
+        /* Estilos personalizados para los sliders */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            margin-top: -6px;
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #4b5563;
+            border-radius: 2px;
+        }
+        input[type=range]:focus {
+            outline: none;
+        }
+        
+        .math-container {
+            overflow-x: auto;
+            overflow-y: hidden;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 font-sans min-h-screen flex flex-col">
+
+    <header class="bg-gray-800 border-b border-gray-700 p-4 shadow-md z-10">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <svg class="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                </svg>
+                <h1 class="text-2xl font-bold tracking-tight text-white">Pozo de Potencial Finito</h1>
+            </div>
+            <div class="text-sm text-gray-400 hidden sm:block">
+                Mecánica Cuántica - Simulación Numérica
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow flex flex-col lg:flex-row w-full max-w-7xl mx-auto p-4 gap-6">
+        
+        <!-- Área del Canvas (Izquierda) -->
+        <section class="flex-grow bg-gray-800 rounded-xl shadow-lg border border-gray-700 flex flex-col relative overflow-hidden min-h-[50vh] lg:min-h-0">
+            <div class="p-4 border-b border-gray-700 bg-gray-800/50 flex justify-between items-center z-10 absolute top-0 left-0 right-0">
+                <h2 class="text-lg font-semibold text-gray-200">Visualización de Funciones de Onda $\psi_n(x)$</h2>
+                <span id="state-counter" class="bg-blue-900/50 text-blue-300 text-xs font-bold px-3 py-1 rounded-full border border-blue-700">
+                    Estados: 0
+                </span>
+            </div>
+            <div id="canvas-container" class="w-full flex-grow relative mt-14">
+                <canvas id="sim-canvas" class="absolute inset-0 w-full h-full"></canvas>
+            </div>
+        </section>
+
+        <!-- Área de Controles y Teoría (Derecha) -->
+        <section class="w-full lg:w-[400px] xl:w-[450px] flex flex-col gap-6 shrink-0">
+            
+            <!-- Controles -->
+            <div class="bg-gray-800 rounded-xl shadow-lg border border-gray-700 p-5">
+                <h2 class="text-xl font-bold text-white mb-4 border-b border-gray-700 pb-2">Parámetros del Pozo</h2>
+                
+                <div class="space-y-6">
+                    <!-- Slider Profundidad -->
+                    <div>
+                        <div class="flex justify-between mb-1">
+                            <label class="text-sm font-medium text-gray-300">Profundidad del Pozo ($V_0$)</label>
+                            <span id="v0-value" class="text-sm font-bold text-blue-400">20.0</span>
+                        </div>
+                        <input type="range" id="v0-slider" min="5" max="50" step="0.5" value="20">
+                    </div>
+
+                    <!-- Slider Ancho -->
+                    <div>
+                        <div class="flex justify-between mb-1">
+                            <label class="text-sm font-medium text-gray-300">Ancho del Pozo ($L$)</label>
+                            <span id="l-value" class="text-sm font-bold text-blue-400">4.00</span>
+                        </div>
+                        <input type="range" id="l-slider" min="1" max="10" step="0.1" value="4">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Información Teórica con Pestañas -->
+            <div class="bg-gray-800 rounded-xl shadow-lg border border-gray-700 flex-grow flex flex-col overflow-hidden min-h-[400px]">
+                
+                <!-- Pestañas de Navegación -->
+                <div class="flex border-b border-gray-700 bg-gray-900/50">
+                    <button id="tab-btn-eq" onclick="switchTab('eq')" class="flex-1 py-3 text-sm font-bold text-blue-400 border-b-2 border-blue-500 focus:outline-none transition-colors">
+                        Ecuaciones y Estados
+                    </button>
+                    <button id="tab-btn-theory" onclick="switchTab('theory')" class="flex-1 py-3 text-sm font-bold text-gray-400 border-b-2 border-transparent hover:text-gray-200 focus:outline-none transition-colors">
+                        Teoría del Pozo
+                    </button>
+                </div>
+                
+                <!-- Contenedores de Pestañas -->
+                <div class="flex-1 flex flex-col overflow-hidden">
+                    
+                    <!-- Pestaña 1: Ecuaciones y Niveles (Activa) -->
+                    <div id="tab-content-eq" class="flex-1 p-5 flex flex-col overflow-y-auto custom-scrollbar">
+                        <div class="text-gray-300 text-sm space-y-4 math-container flex-shrink-0">
+                            <p>La ecuación de Schrödinger independiente del tiempo ($\hbar=1, m=1$):</p>
+                            <div class="bg-gray-900 rounded p-3 flex justify-center border border-gray-700">
+                                $$ -\frac{1}{2}\frac{d^2\psi}{dx^2} + V(x)\psi = E\psi $$
+                            </div>
+                            
+                            <p>Las energías permitidas $E$ se encuentran resolviendo las ecuaciones trascendentales. Definimos $a = L/2$, $\alpha = \sqrt{2E}$ y $\beta = \sqrt{2(V_0-E)}$.</p>
+                            
+                            <div class="grid grid-cols-1 gap-2">
+                                <div class="bg-gray-900 rounded p-2 border border-gray-700">
+                                    <span class="text-xs text-blue-400 font-bold block mb-1">Soluciones Pares:</span>
+                                    <div class="flex justify-center">$$ \alpha \tan(\alpha a) = \beta $$</div>
+                                </div>
+                                <div class="bg-gray-900 rounded p-2 border border-gray-700">
+                                    <span class="text-xs text-red-400 font-bold block mb-1">Soluciones Impares:</span>
+                                    <div class="flex justify-center">$$ \alpha \cot(\alpha a) = -\beta $$</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Lista dinámica de niveles de energía -->
+                        <div class="mt-6 flex-grow flex flex-col min-h-0">
+                            <h3 class="text-sm font-bold text-gray-200 mb-2">Niveles de Energía Encontrados ($E_n$)</h3>
+                            <div id="energy-list" class="space-y-1 overflow-y-auto pr-2 custom-scrollbar text-sm flex-grow pb-2">
+                                <!-- Generado por JS -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Pestaña 2: Teoría del Pozo (Oculta) -->
+                    <div id="tab-content-theory" class="flex-1 p-5 hidden flex-col overflow-y-auto custom-scrollbar">
+                        <h3 class="text-lg font-bold text-blue-400 mb-3 border-b border-gray-700 pb-2">El Pozo Cuadrado Finito</h3>
+                        <div class="text-gray-300 text-sm space-y-5 pb-4">
+                            <p>
+                                A diferencia del pozo de potencial infinito, donde las paredes son impenetrables ($V = \infty$), el <strong>pozo finito</strong> tiene una profundidad máxima definida, $V_0$.
+                            </p>
+                            
+                            <div class="bg-gray-900/50 p-4 rounded-lg border border-gray-700">
+                                <h4 class="font-bold text-white mb-2 text-base">Penetración de la barrera</h4>
+                                <p>
+                                    Clásicamente, una partícula con energía $E < V_0$ no puede escapar del pozo. Sin embargo, en mecánica cuántica, la función de onda <strong>no se anula abruptamente</strong> en los bordes ($x = \pm L/2$). En su lugar, decae exponencialmente fuera del pozo. Esto permite una probabilidad no nula de encontrar la partícula en la región clásicamente prohibida (efecto asociado al efecto túnel).
+                                </p>
+                            </div>
+                            
+                            <div class="bg-gray-900/50 p-4 rounded-lg border border-gray-700">
+                                <h4 class="font-bold text-white mb-2 text-base">Número de estados ligados</h4>
+                                <p>
+                                    Un pozo infinito siempre posee infinitos estados de energía cuantizados. El pozo finito, por el contrario, posee un <strong>número finito</strong> de estados ligados (aquellos con $E < V_0$). A medida que el pozo se hace más estrecho (menor $L$) o menos profundo (menor $V_0$), este número disminuye.
+                                </p>
+                            </div>
+                            
+                            <div class="bg-gray-900/50 p-4 rounded-lg border border-gray-700">
+                                <h4 class="font-bold text-white mb-2 text-base">El estado fundamental</h4>
+                                <p>
+                                    Un resultado teórico clave es que, sin importar cuán estrecho o poco profundo sea un pozo atractivo unidimensional (siempre que $V_0 > 0$), <strong>siempre existirá al menos un estado ligado</strong>. Este siempre corresponderá a una función de onda par ($n=1$).
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        // --- Referencias al DOM ---
+        const canvas = document.getElementById('sim-canvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('canvas-container');
+        
+        const v0Slider = document.getElementById('v0-slider');
+        const lSlider = document.getElementById('l-slider');
+        const v0Value = document.getElementById('v0-value');
+        const lValue = document.getElementById('l-value');
+        const stateCounter = document.getElementById('state-counter');
+        const energyList = document.getElementById('energy-list');
+
+        // --- Constantes Físicas y Configuración ---
+        // Usamos unidades atómicas/naturales: hbar = 1, m = 1
+        const hbar = 1;
+        const m = 1;
+        
+        let V0 = parseFloat(v0Slider.value);
+        let L = parseFloat(lSlider.value);
+        let energyLevels = []; // Almacenará objetos con {E, type, k, kappa}
+
+        // Configuración de renderizado
+        let bounds = {
+            xMin: -10, xMax: 10,
+            yMin: -10, yMax: 60 // El Y se ajustará basado en V0 máximo (50)
+        };
+        const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'];
+
+        // --- Funciones Matemáticas para encontrar raíces ---
+        
+        // Función de bisección genérica
+        function findRoot(f, a, b, tol = 1e-7) {
+            let fa = f(a), fb = f(b);
+            if (fa * fb > 0) return null;
+            
+            let mid, fmid;
+            while ((b - a) > tol) {
+                mid = (a + b) / 2;
+                fmid = f(mid);
+                if (fmid === 0) return mid;
+                if (fa * fmid < 0) {
+                    b = mid; fb = fmid;
+                } else {
+                    a = mid; fa = fmid;
+                }
+            }
+            return (a + b) / 2;
+        }
+
+        // Calcula los niveles de energía resolviendo la ecuación trascendental
+        function calculateEnergyLevels() {
+            energyLevels = [];
+            
+            // Definimos v (parámetro adimensional)
+            // u = sqrt(2mE)*L/(2*hbar), v = sqrt(2mV0)*L/(2*hbar)
+            // Como hbar=1, m=1:
+            const v = Math.sqrt(2 * V0) * (L / 2);
+            
+            // Funciones continuas para evitar asíntotas de tan() y cot()
+            // F_even(u) = u*sin(u) - sqrt(v^2 - u^2)*cos(u) = 0
+            const F_even = (u) => u * Math.sin(u) - Math.sqrt(Math.max(0, v*v - u*u)) * Math.cos(u);
+            
+            // F_odd(u) = u*cos(u) + sqrt(v^2 - u^2)*sin(u) = 0
+            const F_odd = (u) => u * Math.cos(u) + Math.sqrt(Math.max(0, v*v - u*u)) * Math.sin(u);
+
+            const numSteps = 1000;
+            const du = v / numSteps;
+
+            // Buscar raíces para estados pares
+            for (let i = 0; i < numSteps; i++) {
+                let u1 = i * du + 1e-6; // Evitar exactamente 0
+                let u2 = (i + 1) * du - 1e-6;
+                if (u2 > v) u2 = v - 1e-6;
+                
+                if (F_even(u1) * F_even(u2) <= 0) {
+                    let root = findRoot(F_even, u1, u2);
+                    if (root !== null) {
+                        // Convertir 'u' de vuelta a Energía 'E'
+                        // E = (2 * u^2 * hbar^2) / (m * L^2)
+                        let E = (2 * root * root) / (L * L);
+                        energyLevels.push({ E: E, type: 'even', u: root });
+                    }
+                }
+            }
+
+            // Buscar raíces para estados impares
+            for (let i = 0; i < numSteps; i++) {
+                let u1 = i * du + 1e-6;
+                let u2 = (i + 1) * du - 1e-6;
+                if (u2 > v) u2 = v - 1e-6;
+                
+                if (F_odd(u1) * F_odd(u2) <= 0) {
+                    let root = findRoot(F_odd, u1, u2);
+                    if (root !== null) {
+                        let E = (2 * root * root) / (L * L);
+                        energyLevels.push({ E: E, type: 'odd', u: root });
+                    }
+                }
+            }
+
+            // Ordenar por energía ascendente y calcular k, kappa
+            energyLevels.sort((a, b) => a.E - b.E);
+            
+            energyLevels.forEach((level, index) => {
+                level.n = index + 1;
+                level.k = Math.sqrt(2 * level.E);
+                level.kappa = Math.sqrt(2 * (V0 - level.E));
+            });
+            
+            updateUIInfo();
+        }
+
+        // --- Funciones de Renderizado (Canvas) ---
+
+        // Mapea coordenadas del "mundo" a píxeles en el canvas
+        function w2s(x, y) {
+            // Usar dimensiones lógicas (CSS) en lugar de pixeles físicos del canvas 
+            // para que coincida con la escala del contexto (ctx.scale) y quede centrado.
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            
+            const sx = ((x - bounds.xMin) / (bounds.xMax - bounds.xMin)) * width;
+            // Invertir eje Y para que energía positiva vaya hacia arriba
+            const sy = height - ((y - bounds.yMin) / (bounds.yMax - bounds.yMin)) * height;
+            
+            return { sx, sy };
+        }
+
+        // Evalúa la función de onda en un punto x
+        function evaluateWavefunction(x, level) {
+            const absX = Math.abs(x);
+            const a = L / 2; // Semiancho
+            let val = 0;
+
+            if (absX <= a) {
+                // Dentro del pozo
+                val = level.type === 'even' 
+                    ? Math.cos(level.k * absX) 
+                    : Math.sin(level.k * absX);
+            } else {
+                // Fuera del pozo (decaimiento exponencial)
+                const B = level.type === 'even' 
+                    ? Math.cos(level.k * a) 
+                    : Math.sin(level.k * a);
+                
+                // Usamos (absX - a) en el exponente para evitar números extremos
+                val = B * Math.exp(-level.kappa * (absX - a));
+            }
+
+            // Ajustar el signo para el lado negativo en funciones impares
+            if (x < 0 && level.type === 'odd') {
+                val = -val;
+            }
+
+            return val;
+        }
+
+        // Bucle principal de dibujo
+        function draw() {
+            // Ajustar tamaño real del canvas
+            canvas.width = container.clientWidth * window.devicePixelRatio;
+            canvas.height = container.clientHeight * window.devicePixelRatio;
+            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+            
+            // Dimensiones lógicas (css)
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
+            // Limpiar fondo
+            ctx.clearRect(0, 0, width, height);
+
+            // Dibujar Eje X (E=0)
+            const origin = w2s(0, 0);
+            ctx.beginPath();
+            ctx.moveTo(0, origin.sy);
+            ctx.lineTo(width, origin.sy);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            
+            // Dibujar Eje Y (x=0)
+            const yAxisOrigin = w2s(0, bounds.yMin);
+            const yAxisTop = w2s(0, bounds.yMax);
+            ctx.beginPath();
+            ctx.moveTo(yAxisOrigin.sx, yAxisOrigin.sy);
+            ctx.lineTo(yAxisTop.sx, yAxisTop.sy);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.setLineDash([5, 5]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            const p1 = w2s(bounds.xMin, V0);
+            const p2 = w2s(-L/2, V0);
+            const p3 = w2s(-L/2, 0);
+            const p4 = w2s(L/2, 0);
+            const p5 = w2s(L/2, V0);
+            const p6 = w2s(bounds.xMax, V0);
+
+            // Relleno suave del potencial
+            ctx.beginPath();
+            ctx.moveTo(0, height);
+            ctx.lineTo(p1.sx, height);
+            ctx.lineTo(p1.sx, p1.sy);
+            ctx.lineTo(p2.sx, p2.sy);
+            ctx.lineTo(p3.sx, p3.sy);
+            ctx.lineTo(p4.sx, p4.sy);
+            ctx.lineTo(p5.sx, p5.sy);
+            ctx.lineTo(p6.sx, p6.sy);
+            ctx.lineTo(width, height);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
+            ctx.fill();
+
+            // Líneas gruesas del potencial
+            ctx.beginPath();
+            ctx.moveTo(p1.sx, p1.sy);
+            ctx.lineTo(p2.sx, p2.sy);
+            ctx.lineTo(p3.sx, p3.sy);
+            ctx.lineTo(p4.sx, p4.sy);
+            ctx.lineTo(p5.sx, p5.sy);
+            ctx.lineTo(p6.sx, p6.sy);
+            ctx.strokeStyle = '#f3f4f6';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+            
+            // Texto del ancho del pozo
+            ctx.fillStyle = '#9ca3af';
+            ctx.font = '12px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('-L/2', p3.sx, p3.sy + 15);
+            ctx.fillText('L/2', p4.sx, p4.sy + 15);
+            
+            // Texto de V0
+            ctx.textAlign = 'right';
+            ctx.fillText('V₀ = ' + V0.toFixed(1), p2.sx - 10, p2.sy - 5);
+
+            // Escala visual de la función de onda para que no solapen demasiado
+            const waveScale = 3.5; 
+
+            energyLevels.forEach((level, index) => {
+                const color = colors[index % colors.length];
+                
+                // Línea del Nivel de Energía
+                const eStart = w2s(bounds.xMin, level.E);
+                const eEnd = w2s(bounds.xMax, level.E);
+                
+                ctx.beginPath();
+                ctx.moveTo(eStart.sx, eStart.sy);
+                ctx.lineTo(eEnd.sx, eEnd.sy);
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1;
+                ctx.setLineDash([4, 4]);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                
+                // Etiqueta del nivel de energía
+                ctx.fillStyle = color;
+                ctx.textAlign = 'left';
+                ctx.fillText(`n=${level.n}`, eEnd.sx - 35, eEnd.sy - 5);
+
+                // Curva de la Función de Onda
+                ctx.beginPath();
+                const step = (bounds.xMax - bounds.xMin) / 500;
+                let isFirstPoint = true;
+                
+                for (let x = bounds.xMin; x <= bounds.xMax; x += step) {
+                    const psiVal = evaluateWavefunction(x, level);
+                    // y = E + escala * psi(x)
+                    const visualY = level.E + waveScale * psiVal;
+                    
+                    const screenPt = w2s(x, visualY);
+                    
+                    if (isFirstPoint) {
+                        ctx.moveTo(screenPt.sx, screenPt.sy);
+                        isFirstPoint = false;
+                    } else {
+                        ctx.lineTo(screenPt.sx, screenPt.sy);
+                    }
+                }
+                
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2.5;
+                ctx.stroke();
+            });
+        }
+
+        // --- Actualización de la Interfaz ---
+        function updateUIInfo() {
+            // Actualizar contador
+            stateCounter.innerText = `Estados Enlazados: ${energyLevels.length}`;
+            
+            // Actualizar lista en la barra lateral
+            energyList.innerHTML = '';
+            
+            if (energyLevels.length === 0) {
+                energyList.innerHTML = '<div class="text-gray-500 italic">No hay estados enlazados.</div>';
+                return;
+            }
+
+            energyLevels.forEach((level, index) => {
+                const color = colors[index % colors.length];
+                const div = document.createElement('div');
+                div.className = 'flex justify-between items-center bg-gray-900 p-2 rounded border-l-4';
+                div.style.borderLeftColor = color;
+                
+                const typeText = level.type === 'even' ? 'Par' : 'Impar';
+                
+                div.innerHTML = `
+                    <span class="font-mono text-gray-300">n=${level.n} (${typeText})</span>
+                    <span class="font-mono text-white font-bold">E = ${level.E.toFixed(4)}</span>
+                `;
+                energyList.appendChild(div);
+            });
+        }
+
+        // Manejador central cuando cambian los parámetros
+        function onParameterChange() {
+            V0 = parseFloat(v0Slider.value);
+            L = parseFloat(lSlider.value);
+            
+            v0Value.innerText = V0.toFixed(1);
+            lValue.innerText = L.toFixed(2);
+            
+            calculateEnergyLevels();
+            draw();
+        }
+
+        // --- Inicialización y Event Listeners ---
+        window.addEventListener('resize', draw);
+        
+        v0Slider.addEventListener('input', onParameterChange);
+        lSlider.addEventListener('input', onParameterChange);
+
+        // Inicialización al cargar la página
+        calculateEnergyLevels();
+        // Un pequeño retraso para asegurar que los divs tengan dimensiones antes de dibujar
+        setTimeout(draw, 50); 
+
+        // --- Manejo de Pestañas ---
+        function switchTab(tabId) {
+            const btnEq = document.getElementById('tab-btn-eq');
+            const btnTheory = document.getElementById('tab-btn-theory');
+            const contentEq = document.getElementById('tab-content-eq');
+            const contentTheory = document.getElementById('tab-content-theory');
+
+            if (tabId === 'eq') {
+                // Estilos Botón Activo (Eq)
+                btnEq.className = "flex-1 py-3 text-sm font-bold text-blue-400 border-b-2 border-blue-500 focus:outline-none transition-colors";
+                btnTheory.className = "flex-1 py-3 text-sm font-bold text-gray-400 border-b-2 border-transparent hover:text-gray-200 focus:outline-none transition-colors";
+                
+                // Mostrar Eq, Ocultar Teoría
+                contentEq.classList.remove('hidden');
+                contentEq.classList.add('flex');
+                contentTheory.classList.remove('flex');
+                contentTheory.classList.add('hidden');
+            } else {
+                // Estilos Botón Activo (Teoría)
+                btnTheory.className = "flex-1 py-3 text-sm font-bold text-blue-400 border-b-2 border-blue-500 focus:outline-none transition-colors";
+                btnEq.className = "flex-1 py-3 text-sm font-bold text-gray-400 border-b-2 border-transparent hover:text-gray-200 focus:outline-none transition-colors";
+                
+                // Mostrar Teoría, Ocultar Eq
+                contentTheory.classList.remove('hidden');
+                contentTheory.classList.add('flex');
+                contentEq.classList.remove('flex');
+                contentEq.classList.add('hidden');
+            }
+        }
+
+    </script>
+</body>
+</html>
